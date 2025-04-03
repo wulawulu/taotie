@@ -11,7 +11,9 @@ anyhow = "1.0.97"
 arrow = { version = "54.3.1", features = ["prettyprint"] }
 chrono = { version = "0.4.40", features = ["serde"] }
 clap = { version = "4.5.35", features = ["derive"] }
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 datafusion = { version = "46.0.1", features = ["serde"] }
+dirs = "6.0.0"
 parquet = "54.3.1"
 polars = { version = "0.46.0", features = ["parquet", "timezones", "sql", "lazy"] }
 reedline-repl-rs = { version = "1.2.1", features = ["derive"] }
