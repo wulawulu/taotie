@@ -1,5 +1,4 @@
-use super::ReplCommands;
-use crate::ReplContext;
+use crate::{Backend, CmdExecutor, ReplContext, ReplDisplay, ReplMsg};
 use clap::{ArgMatches, Parser};
 use reedline_repl_rs::Result;
 #[derive(Debug, Parser)]
@@ -13,15 +12,15 @@ pub fn sql(args: ArgMatches, context: &mut ReplContext) -> Result<Option<String>
         .get_one::<String>("query")
         .expect("expect query")
         .to_string();
-    let cmd = SqlOpts::new(sql).into();
-    context.send(cmd);
+    let (msg, rx) = ReplMsg::new(SqlOpts::new(sql));
 
-    Ok(None)
+    Ok(context.send(msg, rx))
 }
 
-impl From<SqlOpts> for ReplCommands {
-    fn from(opts: SqlOpts) -> Self {
-        ReplCommands::Sql(opts)
+impl CmdExecutor for SqlOpts {
+    async fn execute<T: Backend>(&self, backend: &mut T) -> anyhow::Result<String> {
+        let df = backend.sql(&self.query).await?;
+        df.display().await
     }
 }
 

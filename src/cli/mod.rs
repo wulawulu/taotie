@@ -1,19 +1,24 @@
 use clap::Parser;
-use connect::ConnectOpts;
-use describe::DescribeOpts;
-use head::HeadOpts;
-use sql::SqlOpts;
+pub use connect::{ConnectOpts, DatasetConn};
+pub use describe::DescribeOpts;
+use enum_dispatch::enum_dispatch;
+pub use head::HeadOpts;
+pub use list::ListOpts;
+pub use schema::SchemaOpts;
+pub use sql::SqlOpts;
 
 mod connect;
 mod describe;
 mod head;
 mod list;
+mod schema;
 mod sql;
 
 pub use connect::connect;
 pub use describe::describe;
 pub use head::head;
 pub use list::list;
+pub use schema::schema;
 pub use sql::sql;
 
 #[derive(Parser, Debug)]
@@ -29,6 +34,7 @@ pub struct ReplCommand {
 }
 
 #[derive(Debug, Parser)]
+#[enum_dispatch]
 pub enum ReplCommands {
     #[command(
         name = "connect",
@@ -36,11 +42,13 @@ pub enum ReplCommands {
     )]
     Connect(ConnectOpts),
     #[command(name = "list", about = "List all registered datasets")]
-    List,
+    List(ListOpts),
     #[command(name = "describe", about = "Describe a dataset")]
     Describe(DescribeOpts),
     #[command(about = "Show first few rows of a dataset")]
     Head(HeadOpts),
     #[command(about = "Query a dataset using given SQL")]
     Sql(SqlOpts),
+    #[command(about = "Show the schema of a dataset")]
+    Schema(SchemaOpts),
 }

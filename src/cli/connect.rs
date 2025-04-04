@@ -1,9 +1,7 @@
 use clap::{ArgMatches, Parser};
 use reedline_repl_rs::Result;
 
-use crate::ReplContext;
-
-use super::ReplCommands;
+use crate::{Backend, CmdExecutor, ReplContext, ReplMsg};
 
 #[derive(Debug, Clone)]
 pub enum DatasetConn {
@@ -20,7 +18,7 @@ pub struct ConnectOpts {
     #[arg(short, long, help = "If database, the name of the table")]
     pub table: Option<String>,
     #[arg(short, long, help = "the name of the dataset")]
-    name: String,
+    pub name: String,
 }
 
 pub fn connect(args: ArgMatches, context: &mut ReplContext) -> Result<Option<String>> {
@@ -34,21 +32,21 @@ pub fn connect(args: ArgMatches, context: &mut ReplContext) -> Result<Option<Str
         .expect("expect name")
         .to_string();
 
-    let cmd = ConnectOpts::new(conn, table, name).into();
-    context.send(cmd);
+    let (msg, rx) = ReplMsg::new(ConnectOpts::new(conn, table, name));
 
-    Ok(None)
-}
-
-impl From<ConnectOpts> for ReplCommands {
-    fn from(opts: ConnectOpts) -> Self {
-        ReplCommands::Connect(opts)
-    }
+    Ok(context.send(msg, rx))
 }
 
 impl ConnectOpts {
     pub fn new(conn: DatasetConn, table: Option<String>, name: String) -> Self {
         Self { conn, table, name }
+    }
+}
+
+impl CmdExecutor for ConnectOpts {
+    async fn execute<T: Backend>(&self, backend: &mut T) -> anyhow::Result<String> {
+        backend.connect(self).await?;
+        Ok(format!("Connected to dataset {}", self.name))
     }
 }
 

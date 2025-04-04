@@ -14,6 +14,8 @@ clap = { version = "4.5.35", features = ["derive"] }
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 datafusion = { version = "46.0.1", features = ["serde"] }
 dirs = "6.0.0"
+enum_dispatch = "0.3.13"
+oneshot = "0.1.11"
 parquet = "54.3.1"
 polars = { version = "0.46.0", features = ["parquet", "timezones", "sql", "lazy"] }
 reedline-repl-rs = { version = "1.2.1", features = ["derive"] }
