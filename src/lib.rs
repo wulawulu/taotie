@@ -68,7 +68,6 @@ impl ReplContext {
                         Ok::<_, anyhow::Error>(())
                     }) {
                         eprintln!("Failed to process command: {}", e);
-                        std::process::exit(1);
                     }
                 }
             })
@@ -81,13 +80,7 @@ impl ReplContext {
             eprintln!("Failed to send command: {} to backend", e);
             std::process::exit(1);
         }
-        match rx.recv() {
-            Ok(data) => Some(data),
-            Err(e) => {
-                eprintln!("Failed to receive command process result: {}", e);
-                std::process::exit(1);
-            }
-        }
+        rx.recv().ok()
     }
 }
 
