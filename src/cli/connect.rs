@@ -1,4 +1,5 @@
 use clap::{ArgMatches, Parser};
+use datafusion::datasource::file_format::file_compression_type::FileCompressionType;
 use reedline_repl_rs::Result;
 
 use crate::{Backend, CmdExecutor, ReplContext, ReplMsg};
@@ -7,8 +8,15 @@ use crate::{Backend, CmdExecutor, ReplContext, ReplMsg};
 pub enum DatasetConn {
     Postgres(String),
     Parquet(String),
-    Csv(String),
-    Json(String),
+    Csv(FileOpts),
+    Json(FileOpts),
+}
+
+#[derive(Debug, Clone)]
+pub struct FileOpts {
+    pub filename: String,
+    pub extension: String,
+    pub compression: FileCompressionType,
 }
 
 #[derive(Debug, Parser)]
@@ -51,15 +59,53 @@ impl CmdExecutor for ConnectOpts {
 }
 
 fn parse_dataset_conn(s: &str) -> std::result::Result<DatasetConn, String> {
-    if s.starts_with("postgres://") {
-        Ok(DatasetConn::Postgres(s.to_string()))
-    } else if s.ends_with(".parquet") {
-        Ok(DatasetConn::Parquet(s.to_string()))
-    } else if s.ends_with(".csv") {
-        Ok(DatasetConn::Csv(s.to_string()))
-    } else if s.ends_with(".json") {
-        Ok(DatasetConn::Json(s.to_string()))
-    } else {
-        Err(format!("Unsupported dataset connection: {}", s))
+    let con_str = s.to_string();
+    if con_str.starts_with("postgres://") {
+        return Ok(DatasetConn::Postgres(con_str.to_string()));
+    }
+    if con_str.ends_with(".parquet") {
+        return Ok(DatasetConn::Parquet(con_str.to_string()));
+    }
+
+    let parts = con_str.split('.').collect::<Vec<_>>();
+    let len = parts.len();
+    let mut parts = parts.into_iter().skip(1).take(len - 1);
+
+    let r#type = parts.next();
+    let compression = parts.next();
+
+    match (compression, r#type) {
+        (Some(compression), Some(r#type)) => {
+            let compression = match compression {
+                "gz" => FileCompressionType::GZIP,
+                "bz2" => FileCompressionType::BZIP2,
+                "xz" => FileCompressionType::XZ,
+                "zstd" => FileCompressionType::ZSTD,
+                v => return Err(format!("Invalid compression type: {}", v)),
+            };
+            let opts = FileOpts {
+                filename: s.to_string(),
+                extension: r#type.to_string(),
+                compression,
+            };
+            match r#type {
+                "csv" => Ok(DatasetConn::Csv(opts)),
+                "json" | "ndjson" | "jsonl" => Ok(DatasetConn::Json(opts)),
+                v => Err(format!("Invliad file extension: {}", v)),
+            }
+        }
+        (None, Some(r#type)) => {
+            let opts = FileOpts {
+                filename: s.to_string(),
+                extension: r#type.to_string(),
+                compression: FileCompressionType::UNCOMPRESSED,
+            };
+            match r#type {
+                "csv" => Ok(DatasetConn::Csv(opts)),
+                "json" | "ndjson" | "jsonl" => Ok(DatasetConn::Json(opts)),
+                _ => Err(format!("Unsupported dataset connection: {}", con_str)),
+            }
+        }
+        _ => Err(format!("Unsupported dataset connection: {}", con_str)),
     }
 }

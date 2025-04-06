@@ -3,7 +3,7 @@ use std::ops::Deref;
 use crate::{Backend, ConnectOpts, DatasetConn, ReplDisplay};
 use anyhow::Result;
 use arrow::util::pretty::pretty_format_batches;
-use datafusion::prelude::{SessionConfig, SessionContext};
+use datafusion::prelude::{CsvReadOptions, NdJsonReadOptions, SessionConfig, SessionContext};
 
 pub struct DatafusionBackend(SessionContext);
 
@@ -25,12 +25,22 @@ impl Backend for DatafusionBackend {
                     .await?;
             }
             DatasetConn::Postgres(_) => todo!(),
-            DatasetConn::Csv(path) => {
-                self.register_csv(&opts.name, path, Default::default())
+            DatasetConn::Csv(file_opts) => {
+                let options = CsvReadOptions {
+                    file_extension: &file_opts.extension,
+                    file_compression_type: file_opts.compression,
+                    ..Default::default()
+                };
+                self.register_csv(&opts.name, &file_opts.filename, options)
                     .await?;
             }
-            DatasetConn::Json(path) => {
-                self.register_json(&opts.name, path, Default::default())
+            DatasetConn::Json(file_opts) => {
+                let options = NdJsonReadOptions {
+                    file_extension: &file_opts.extension,
+                    file_compression_type: file_opts.compression,
+                    ..Default::default()
+                };
+                self.register_json(&opts.name, &file_opts.filename, options)
                     .await?;
             }
         }
