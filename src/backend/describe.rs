@@ -3,7 +3,9 @@ use std::sync::Arc;
 use arrow::datatypes::{DataType, Field};
 use datafusion::prelude::{DataFrame, array_length, case, cast, col, is_null, length, lit};
 
-use datafusion::functions_aggregate::expr_fn::{avg, count, max, median, min, stddev, sum};
+use datafusion::functions_aggregate::expr_fn::{
+    approx_percentile_cont, avg, count, max, median, min, stddev, sum,
+};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -56,6 +58,11 @@ impl DataFrameDescriber {
                 DescribeMethod::Min,
                 DescribeMethod::Max,
                 DescribeMethod::Median,
+                DescribeMethod::Percentile(50),
+                DescribeMethod::Percentile(75),
+                DescribeMethod::Percentile(90),
+                DescribeMethod::Percentile(95),
+                DescribeMethod::Percentile(99),
             ],
         })
     }
@@ -76,7 +83,7 @@ impl DataFrameDescriber {
                 DescribeMethod::Min => minimum(df).unwrap(),
                 DescribeMethod::Max => maximum(df).unwrap(),
                 DescribeMethod::Median => med(df).unwrap(),
-                DescribeMethod::Percentile(_) => todo!(),
+                DescribeMethod::Percentile(percent) => percentile(df, *percent).unwrap(),
             };
 
             // add a new column to the beginning of the dataframe
@@ -168,6 +175,20 @@ fn null_total(df: DataFrame) -> anyhow::Result<DataFrame> {
                     .otherwise(lit(0))
                     .unwrap())
                 .alias(f.name())
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    Ok(ret)
+}
+
+fn percentile(df: DataFrame, p: u8) -> anyhow::Result<DataFrame> {
+    let fields = df.schema().fields().iter();
+    let ret = df.clone().aggregate(
+        vec![],
+        fields
+            .map(|f| {
+                approx_percentile_cont(col(f.name()), lit(p as f64 / 100.0), Some(lit(100)))
+                    .alias(f.name())
             })
             .collect::<Vec<_>>(),
     )?;
