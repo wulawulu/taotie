@@ -194,3 +194,110 @@ fn percentile(df: DataFrame, p: u8) -> anyhow::Result<DataFrame> {
     )?;
     Ok(ret)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Ok;
+    use arrow::array::{Float64Array, Int32Array};
+    use arrow::datatypes::{Field, Schema};
+    use arrow::util::pretty::pretty_format_batches;
+    use datafusion::prelude::*;
+
+    async fn create_test_df(
+        int_array: Vec<Option<i32>>,
+        float_array: Vec<Option<f64>>,
+    ) -> DataFrame {
+        let schema = Schema::new(vec![
+            Field::new("int_col", DataType::Int32, true),
+            Field::new("float_col", DataType::Float64, true),
+        ]);
+
+        let int_array = Int32Array::from(int_array);
+        let float_array = Float64Array::from(float_array);
+
+        let batch = arrow::record_batch::RecordBatch::try_new(
+            Arc::new(schema),
+            vec![Arc::new(int_array), Arc::new(float_array)],
+        )
+        .unwrap();
+
+        let ctx = SessionContext::new();
+        ctx.read_batch(batch).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_describe_basic() -> anyhow::Result<()> {
+        let df = create_test_df(
+            vec![Some(1), Some(2), Some(3), Some(4), Some(5)],
+            vec![Some(1.0), Some(2.0), Some(3.0), Some(4.0), Some(5.0)],
+        )
+        .await;
+        let describer = DataFrameDescriber::try_new(df)?;
+        let result = describer.describe().await?;
+
+        let result = result.collect().await?;
+        let data = pretty_format_batches(&result)?;
+        let expected = r#"+---------------+--------------------+--------------------+
+| describe      | int_col            | float_col          |
++---------------+--------------------+--------------------+
+| max           | 5.0                | 5.0                |
+| mean          | 3.0                | 3.0                |
+| median        | 3.0                | 3.0                |
+| min           | 1.0                | 1.0                |
+| null_total    | 0.0                | 0.0                |
+| percentile_50 | 3.0                | 3.0                |
+| percentile_75 | 4.0                | 4.25               |
+| percentile_90 | 5.0                | 5.0                |
+| percentile_95 | 5.0                | 5.0                |
+| percentile_99 | 5.0                | 5.0                |
+| stddev        | 1.5811388300841898 | 1.5811388300841898 |
+| total         | 5.0                | 5.0                |
++---------------+--------------------+--------------------+"#;
+        assert_eq!(expected, data.to_string());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_describe_with_null_values() -> anyhow::Result<()> {
+        let df = create_test_df(
+            vec![Some(1), None, Some(3), None, Some(3), Some(4), Some(5)],
+            vec![
+                Some(1.0),
+                Some(2.0),
+                None,
+                Some(2.0),
+                None,
+                Some(4.0),
+                Some(5.0),
+            ],
+        )
+        .await;
+
+        let describer = DataFrameDescriber::try_new(df).unwrap();
+        let df = describer.describe().await.unwrap();
+        let result = df.collect().await.unwrap();
+        let data = pretty_format_batches(&result)?;
+
+        let expected = r#"+---------------+--------------------+--------------------+
+| describe      | int_col            | float_col          |
++---------------+--------------------+--------------------+
+| max           | 5.0                | 5.0                |
+| mean          | 3.2                | 2.8                |
+| median        | 3.0                | 2.0                |
+| min           | 1.0                | 1.0                |
+| null_total    | 2.0                | 2.0                |
+| percentile_50 | 3.0                | 2.0                |
+| percentile_75 | 4.0                | 4.375              |
+| percentile_90 | 5.0                | 5.0                |
+| percentile_95 | 5.0                | 5.0                |
+| percentile_99 | 5.0                | 5.0                |
+| stddev        | 1.4832396974191326 | 1.6431676725154984 |
+| total         | 5.0                | 5.0                |
++---------------+--------------------+--------------------+"#;
+        assert_eq!(expected, data.to_string());
+
+        Ok(())
+    }
+}
